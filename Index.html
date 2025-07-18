@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>React Sketch App</title>
+    <!-- Tailwind CSS CDN for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Inter for consistent typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Link to your custom stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- The root div where your React application will be mounted -->
+    <div id="root"></div>
+
+    <!-- Load React and ReactDOM from CDN using UMD builds -->
+    <!-- These scripts make React and ReactDOM available globally -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- You can use the production build for better performance in a live environment -->
+    <!-- <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script> -->
+
+
+    <!-- Your React App component and rendering logic -->
+    <script type="text/javascript">
+        // Main App component
+        const App = () => {
+            // Refs for canvas and image upload input
+            const canvasRef = React.useRef(null);
+            const imageUploadRef = React.useRef(null);
+
+            // State variables for drawing and image processing
+            const [isDrawing, setIsDrawing] = React.useState(false);
+            const [lastPosition, setLastPosition] = React.useState({ x: 0, y: 0 });
+            const [currentMode, setCurrentMode] = React.useState('pencil');
+            const [currentColor, setCurrentColor] = React.useState('#000000');
+            const [currentBrushSize, setCurrentBrushSize] = React.useState(5); // Kept for potential future use
+            const [originalImage, setOriginalImage] = React.useState(null);
+            const [message, setMessage] = React.useState(''); // For user messages (e.g., "Upload image first!")
+
+            // Helper function to draw an image on the canvas, fitting it while maintaining aspect ratio
+            const drawImageOnCanvas = React.useCallback((ctx, img, canvas) => {
+                ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear before drawing
+
+                const aspectRatio = img.width / img.height;
+                let drawWidth = canvas.width;
+                let drawHeight = canvas.height;
+
+                if (canvas.width / canvas.height > aspectRatio) {
+                    drawWidth = canvas.height * aspectRatio;
+                } else {
+                    drawHeight = canvas.width / aspectRatio;
+                }
+
+                const x = (canvas.width - drawWidth) / 2;
+                const y = (canvas.height - drawHeight) / 2;
+
+                ctx.drawImage(img, x, y, drawWidth, drawHeight);
+            }, []);
+
+            // Effect to handle canvas resizing
+            React.useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+
+                const resizeCanvas = () => {
+                    const parent = canvas.parentElement;
+                    canvas.width = parent.clientWidth;
+                    canvas.height = parent.clientHeight;
+                    // Redraw image if it exists after resize
+                    if (originalImage) {
+                        drawImageOnCanvas(ctx, originalImage, canvas);
+                    } else {
+                        ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                };
+
+                resizeCanvas();
+                window.addEventListener('resize', resizeCanvas);
+
+                // Cleanup event listener on component unmount
+                return () => window.removeEventListener('resize', resizeCanvas);
+            }, [originalImage, drawImageOnCanvas]); // Re-run if originalImage changes to redraw it
+
+
+            // Function to start drawing
+            const startDrawing = React.useCallback((e) => {
+                setIsDrawing(true);
+                const canvas = canvasRef.current;
+                const canvasRect = canvas.getBoundingClientRect();
+                const clientX = e.nativeEvent.clientX || (e.touches && e.touches[0].clientX);
+                const clientY = e.nativeEvent.clientY || (e.touches && e.touches[0].clientY);
+                setLastPosition({ x: clientX - canvasRect.left, y: clientY - canvasRect.top });
+            }, []);
+
+            // Function to draw
+            const draw = React.useCallback((e) => {
+                if (!isDrawing) return;
+                e.preventDefault(); // Prevent scrolling on touch devices
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                const canvasRect = canvas.getBoundingClientRect();
+                const clientX = e.nativeEvent.clientX || (e.touches && e.touches[0].clientX);
+                const clientY = e.nativeEvent.clientY || (e.touches && e.touches[0].clientY);
+                const currentX = clientX - canvasRect.left;
+                const currentY = clientY - canvasRect.top;
+
+                ctx.beginPath();
+                ctx.moveTo(lastPosition.x, lastPosition.y);
+                ctx.lineTo(currentX, currentY);
+
+                // Apply drawing style based on current mode
+                if (currentMode === 'pencil') {
+                    ctx.strokeStyle = currentColor;
+                    ctx.lineWidth = currentBrushSize;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.globalCompositeOperation = 'source-over';
+                } else if (currentMode === 'light') {
+                    ctx.strokeStyle = currentColor;
+                    ctx.lineWidth = currentBrushSize;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.globalAlpha = 0.3;
+                    ctx.globalCompositeOperation = 'source-over';
+                } else if (currentMode === 'erase') {
+                    ctx.strokeStyle = '#FFFFFF'; // Erase with white color (canvas background)
+                    ctx.lineWidth = currentBrushSize * 2;
+                    ctx.lineCap = 'round';
+                    ctx.lineJoin = 'round';
+                    ctx.globalCompositeOperation = 'destination-out';
+                }
+
+                ctx.stroke();
+                ctx.globalAlpha = 1; // Reset alpha for next drawing operation
+                setLastPosition({ x: currentX, y: currentY });
+            }, [isDrawing, lastPosition, currentMode, currentColor, currentBrushSize]);
+
+            // Function to stop drawing
+            const stopDrawing = React.useCallback(() => {
+                setIsDrawing(false);
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.beginPath(); // Reset the path
+            }, []);
+
+            // Function to load an image onto the canvas
+            const handleImageUpload = React.useCallback((event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        setOriginalImage(img); // Store the original image in state
+                        const canvas = canvasRef.current;
+                        const ctx = canvas.getContext('2d');
+                        drawImageOnCanvas(ctx, img, canvas);
+                    };
+                    img.src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }, [drawImageOnCanvas]);
+
+            // Function to apply pencil art effect
+            const applyPencilArtEffect = React.useCallback(() => {
+                if (!originalImage) {
+                    setMessage('Please upload an image first!');
+                    return;
+                }
+                setMessage(''); // Clear previous messages
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+
+                // Create a temporary canvas for original grayscale
+                const originalGrayCanvas = document.createElement('canvas');
+                const originalGrayCtx = originalGrayCanvas.getContext('2d');
+                originalGrayCanvas.width = originalImage.width;
+                originalGrayCanvas.height = originalImage.height;
+                originalGrayCtx.drawImage(originalImage, 0, 0);
+
+                let originalGrayImageData = originalGrayCtx.getImageData(0, 0, originalGrayCanvas.width, originalGrayCanvas.height);
+                let originalGrayPixels = originalGrayImageData.data;
+
+                // Convert original to grayscale
+                for (let i = 0; i < originalGrayPixels.length; i += 4) {
+                    const r = originalGrayPixels[i];
+                    const g = originalGrayPixels[i + 1];
+                    const b = originalGrayPixels[i + 2];
+                    const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+                    originalGrayPixels[i] = gray;
+                    originalGrayPixels[i + 1] = gray;
+                    originalGrayPixels[i + 2] = gray;
+                }
+                originalGrayCtx.putImageData(originalGrayImageData, 0, 0);
+
+                // Create a temporary canvas for inverted and blurred image
+                const invertedBlurredCanvas = document.createElement('canvas');
+                const invertedBlurredCtx = invertedBlurredCanvas.getContext('2d');
+                invertedBlurredCanvas.width = originalImage.width;
+                invertedBlurredCanvas.height = originalImage.height;
+                invertedBlurredCtx.drawImage(originalImage, 0, 0);
+
+                let invertedImageData = invertedBlurredCtx.getImageData(0, 0, invertedBlurredCanvas.width, invertedBlurredCanvas.height);
+                let invertedPixels = invertedImageData.data;
+
+                // Convert to grayscale and then invert
+                for (let i = 0; i < invertedPixels.length; i += 4) {
+                    const r = invertedPixels[i];
+                    const g = invertedPixels[i + 1];
+                    const b = invertedPixels[i + 2];
+                    const gray = (r * 0.299 + g * 0.587 + b * 0.114);
+                    invertedPixels[i] = 255 - gray; // Grayscale and invert in one step
+                    invertedPixels[i + 1] = 255 - gray;
+                    invertedPixels[i + 2] = 255 - gray;
+                }
+                invertedBlurredCtx.putImageData(invertedImageData, 0, 0);
+
+                // Apply a simple box blur to the inverted image
+                const blurRadius = 1;
+                const tempBlurData = invertedBlurredCtx.getImageData(0, 0, invertedBlurredCanvas.width, invertedBlurredCanvas.height);
+                const tempBlurPixels = tempBlurData.data;
+                const width = invertedBlurredCanvas.width;
+                const height = invertedBlurredCanvas.height;
+
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        let rSum = 0, gSum = 0, bSum = 0, count = 0;
+                        for (let ky = -blurRadius; ky <= blurRadius; ky++) {
+                            for (let kx = -blurRadius; kx <= blurRadius; kx++) {
+                                const nx = x + kx;
+                                const ny = y + ky;
+                                if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                                    const idx = (ny * width + nx) * 4;
+                                    rSum += invertedPixels[idx];
+                                    gSum += invertedPixels[idx + 1];
+                                    bSum += invertedPixels[idx + 2];
+                                    count++;
+                                }
+                            }
+                        }
+                        const currentIdx = (y * width + x) * 4;
+                        tempBlurPixels[currentIdx] = rSum / count;
+                        tempBlurPixels[currentIdx + 1] = gSum / count;
+                        tempBlurPixels[currentIdx + 2] = bSum / count;
+                    }
+                }
+                invertedBlurredCtx.putImageData(tempBlurData, 0, 0);
+
+                // Perform the Color Dodge blend
+                let finalImageData = ctx.createImageData(originalImage.width, originalImage.height);
+                let finalPixels = finalImageData.data;
+
+                let blurredInvertedPixelsData = invertedBlurredCtx.getImageData(0, 0, invertedBlurredCanvas.width, invertedBlurredCanvas.height);
+                let blurredInvertedPixels = blurredInvertedPixelsData.data;
+
+                for (let i = 0; i < finalPixels.length; i += 4) {
+                    const base = originalGrayPixels[i];
+                    const blend = blurredInvertedPixels[i];
+
+                    let result;
+                    if (blend === 255) {
+                        result = 255;
+                    } else {
+                        result = (base * 255) / (255 - blend);
+                        result = Math.min(255, result);
+                    }
+
+                    finalPixels[i] = result;
+                    finalPixels[i + 1] = result;
+                    finalPixels[i + 2] = result;
+                    finalPixels[i + 3] = originalGrayPixels[i + 3];
+                }
+
+                // Draw the final processed image back to the main canvas
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const finalImageCanvas = document.createElement('canvas');
+                const finalImageCtx = finalImageCanvas.getContext('2d');
+                finalImageCanvas.width = originalImage.width;
+                finalImageCanvas.height = originalImage.height;
+                finalImageCtx.putImageData(finalImageData, 0, 0);
+
+                drawImageOnCanvas(ctx, finalImageCanvas, canvas);
+            }, [originalImage, drawImageOnCanvas]);
+
+            // Function to apply a brightness filter
+            const applyBrightnessFilter = React.useCallback((brightnessChange) => {
+                if (!originalImage) {
+                    setMessage('Please upload an image first to apply filters!');
+                    return;
+                }
+                setMessage('');
+
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+
+                // Draw the original image onto a temporary canvas to get its pixel data
+                const tempCanvas = document.createElement('canvas');
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCanvas.width = originalImage.width;
+                tempCanvas.height = originalImage.height;
+                tempCtx.drawImage(originalImage, 0, 0);
+
+                let imageData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+                let pixels = imageData.data;
+
+                for (let i = 0; i < pixels.length; i += 4) {
+                    pixels[i] = Math.min(255, Math.max(0, pixels[i] + brightnessChange));     // Red
+                    pixels[i + 1] = Math.min(255, Math.max(0, pixels[i + 1] + brightnessChange)); // Green
+                    pixels[i + 2] = Math.min(255, Math.max(0, pixels[i + 2] + brightnessChange)); // Blue
+                }
+
+                tempCtx.putImageData(imageData, 0, 0);
+                drawImageOnCanvas(ctx, tempCanvas, canvas); // Draw the adjusted image back to main canvas
+            }, [originalImage, drawImageOnCanvas]);
+
+            // Function to apply light filter
+            const applyLightFilter = React.useCallback(() => {
+                applyBrightnessFilter(30); // Increase brightness by 30
+            }, [applyBrightnessFilter]);
+
+            // Function to apply dark filter
+            const applyDarkFilter = React.useCallback(() => {
+                applyBrightnessFilter(-30); // Decrease brightness by 30
+            }, [applyBrightnessFilter]);
+
+
+            // Function to clear the canvas
+            const clearCanvas = React.useCallback(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                setOriginalImage(null); // Clear the stored image
+            }, []);
+
+            return React.createElement(
+                'div',
+                { className: 'bg-gray-100 flex items-center justify-center min-h-screen p-4 font-[Inter]' },
+                React.createElement(
+                    'div',
+                    { className: 'bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl flex flex-col md:flex-row gap-6' },
+                    // Controls Section
+                    React.createElement(
+                        'div',
+                        { className: 'w-full md:w-1/4 flex flex-col space-y-4' },
+                        React.createElement('h2', { className: 'text-2xl font-bold text-gray-800 mb-4' }, 'Sketch Tools'),
+
+                        // Drawing Modes
+                        React.createElement(
+                            'div',
+                            { className: 'flex flex-col space-y-2' },
+                            React.createElement('label', { htmlFor: 'mode-select', className: 'text-gray-700 font-medium' }, 'Drawing Mode:'),
+                            React.createElement(
+                                'select',
+                                {
+                                    id: 'mode-select',
+                                    className: 'p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 animated-select',
+                                    value: currentMode,
+                                    onChange: (e) => setCurrentMode(e.target.value),
+                                },
+                                React.createElement('option', { value: 'pencil' }, 'Pencil'),
+                                React.createElement('option', { value: 'light' }, 'Light Sketch'),
+                                React.createElement('option', { value: 'erase' }, 'Eraser')
+                            )
+                        ),
+
+                        // Upload Image Button and Input
+                        React.createElement(
+                            'label',
+                            {
+                                htmlFor: 'image-upload',
+                                className: 'bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105 text-center cursor-pointer',
+                            },
+                            'Upload Image'
+                        ),
+                        React.createElement('input', {
+                            type: 'file',
+                            id: 'image-upload',
+                            accept: 'image/*',
+                            className: 'hidden',
+                            ref: imageUploadRef,
+                            onChange: handleImageUpload,
+                        }),
+
+                        // Pencil Art Effect Button
+                        React.createElement(
+                            'button',
+                            {
+                                id: 'pencil-art-effect-btn',
+                                className: 'bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105',
+                                onClick: applyPencilArtEffect,
+                            },
+                            'Apply Pencil Art Effect'
+                        ),
+
+                        // New: Light Filter Button
+                        React.createElement(
+                            'button',
+                            {
+                                id: 'light-filter-btn',
+                                className: 'bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105',
+                                onClick: applyLightFilter,
+                            },
+                            'Apply Light Filter'
+                        ),
+
+                        // New: Dark Filter Button
+                        React.createElement(
+                            'button',
+                            {
+                                id: 'dark-filter-btn',
+                                className: 'bg-gray-700 hover:bg-gray-800 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105',
+                                onClick: applyDarkFilter,
+                            },
+                            'Apply Dark Filter'
+                        ),
+
+
+                        // Clear Canvas Button
+                        React.createElement(
+                            'button',
+                            {
+                                id: 'clear-canvas',
+                                className: 'bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition duration-200 ease-in-out transform hover:scale-105',
+                                onClick: clearCanvas,
+                            },
+                            'Clear Canvas'
+                        )
+                    ),
+
+                    // Canvas Section
+                    React.createElement(
+                        'div',
+                        { className: 'w-full md:w-3/4 bg-gray-50 border border-gray-300 rounded-lg overflow-hidden shadow-inner flex items-center justify-center' },
+                        React.createElement('canvas', {
+                            id: 'sketchCanvas',
+                            ref: canvasRef,
+                            className: 'w-full h-full',
+                            onMouseDown: startDrawing,
+                            onMouseMove: draw,
+                            onMouseUp: stopDrawing,
+                            onMouseOut: stopDrawing,
+                            onTouchStart: startDrawing,
+                            onTouchMove: draw,
+                            onTouchEnd: stopDrawing,
+                            onTouchCancel: stopDrawing,
+                        })
+                    )
+                ),
+
+                // Message Box
+                message &&
+                React.createElement(
+                    'div',
+                    { className: 'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white p-5 rounded-lg shadow-xl z-50 text-center' },
+                    React.createElement('p', { className: 'text-gray-800 font-semibold mb-4' }, message),
+                    React.createElement(
+                        'button',
+                        {
+                            className: 'bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg',
+                            onClick: () => setMessage(''),
+                        },
+                        'OK'
+                    )
+                )
+            );
+        };
+
+        // Get the root DOM node
+        const container = document.getElementById('root');
+        // Create a React root
+        const root = ReactDOM.createRoot(container);
+        // Render your App component into the root
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>
