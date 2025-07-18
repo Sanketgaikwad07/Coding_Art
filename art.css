@@ -1,0 +1,75 @@
+/* Custom CSS for the sketch art app */
+
+/* Ensure the body and html take full height */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden; /* Prevent scrolling */
+}
+
+/* Canvas styling */
+canvas {
+    background-color: #ffffff; /* White background for the canvas */
+    display: block; /* Remove extra space below canvas */
+    cursor: crosshair; /* Change cursor to crosshair when hovering over canvas */
+    border-radius: 0.5rem; /* Match parent rounded corners */
+}
+
+/* Adjust the range input thumb for better visibility (though slider is now hidden in HTML) */
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    background: #3B82F6; /* Blue color */
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: #3B82F6; /* Blue color */
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+}
+
+/* Ensure the main container scales well on smaller screens */
+@media (max-width: 768px) {
+    .flex-col {
+        flex-direction: column;
+    }
+    .md\:w-1\/4, .md\:w-3\/4 {
+        width: 100%;
+    }
+}
+
+/* Animated fill effect for the select dropdown */
+.animated-select {
+    background-image: linear-gradient(to right, #60A5FA 50%, #E5E7EB 50%); /* Blue to light gray */
+    background-size: 200% 100%;
+    background-position: right bottom;
+    transition: background-position 0.3s ease-out;
+    color: #1F2937; /* Dark text color */
+}
+
+.animated-select:hover,
+.animated-select:focus {
+    background-position: left bottom;
+    color: #FFFFFF; /* White text on hover/focus */
+}
+
+/* Style for the options within the select (might vary based on browser) */
+.animated-select option {
+    background-color: #FFFFFF; /* Default option background */
+    color: #1F2937; /* Default option text color */
+}
+
+/* When an option is selected, try to make it visually distinct */
+.animated-select option:checked {
+    background-color: #3B82F6; /* Blue for selected option */
+    color: #FFFFFF;
+}
