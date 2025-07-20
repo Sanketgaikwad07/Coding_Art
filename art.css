@@ -8,7 +8,7 @@ html, body {
     overflow: hidden; /* Prevent scrolling */
 }
 
-/* Canvas styling */
+
 canvas {
     background-color: #ffffff; /* White background for the canvas */
     display: block; /* Remove extra space below canvas */
@@ -47,7 +47,7 @@ input[type="range"]::-moz-range-thumb {
     }
 }
 
-/* Animated fill effect for the select dropdown */
+
 .animated-select {
     background-image: linear-gradient(to right, #60A5FA 50%, #E5E7EB 50%); /* Blue to light gray */
     background-size: 200% 100%;
